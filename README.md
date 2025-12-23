@@ -1,4 +1,4 @@
-# Miyagi Trader (ORB Strat + Fib) — Vercel-native options decision engine
+# OrbStrat Trader (ORB Strat + Fib) — Vercel-native options decision engine
 
 TradingView webhook → store-first → async processing (QStash) → explainable decision → options selection → paper/live execution (Tradier).
 

@@ -17,7 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
             <Link href="/" className="font-semibold">
-              Miyagi Trader
+              OrbStrat Trader
             </Link>
             <nav className="hidden flex-wrap gap-3 text-sm text-zinc-700 md:flex">
               {nav.map((n) => (

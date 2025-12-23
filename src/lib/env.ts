@@ -5,7 +5,7 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
 
   // App
-  APP_BASE_URL: z.string().url().optional(), // e.g. https://miyagi-trader.vercel.app
+  APP_BASE_URL: z.string().url().optional(), // e.g. https://orbstrat-trader.vercel.app
 
   // Webhook
   WEBHOOK_SECRET: z.string().optional(),

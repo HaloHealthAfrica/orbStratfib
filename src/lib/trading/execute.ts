@@ -68,7 +68,7 @@ export async function createLiveTradeViaTradier(params: {
     side: brokerSide,
     quantity: params.qty,
     type: "market",
-    tag: `miyagi:${params.signalId}`,
+    tag: `orbstrat:${params.signalId}`,
   });
 
   const trade = await prisma.trade.create({

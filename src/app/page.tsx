@@ -4,7 +4,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-950">
       <div className="mx-auto max-w-3xl px-6 py-16">
-        <h1 className="text-3xl font-semibold tracking-tight">Miyagi Trader</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">OrbStrat Trader</h1>
         <p className="mt-3 text-zinc-700">
           Options trading decision engine: TradingView webhook → store first → async processing → explainable decision →
           optional execution (paper/live).

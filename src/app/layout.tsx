@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Miyagi Trader",
+  title: "OrbStrat Trader",
   description: "Options trading decision engine (TradingView webhook → decide → trade)",
 };
 
