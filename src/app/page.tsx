@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-950">
@@ -11,21 +13,24 @@ export default function Home() {
         <div className="mt-8 rounded-xl border bg-white p-4">
           <div className="text-sm font-medium">Quick links</div>
           <div className="mt-3 flex flex-wrap gap-3 text-sm">
-            <a className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/dashboard">
+            <Link className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/dashboard">
               Dashboard
-            </a>
-            <a className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/webhooks">
+            </Link>
+            <Link className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/webhooks">
               Webhooks
-            </a>
-            <a className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/signals">
+            </Link>
+            <Link className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/signals">
               Signals
-            </a>
-            <a className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/trades">
+            </Link>
+            <Link className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/trades">
               Trades
-            </a>
-            <a className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/settings">
+            </Link>
+            <Link className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/watchlist">
+              Watchlist
+            </Link>
+            <Link className="rounded-lg border bg-zinc-50 px-3 py-2 hover:bg-zinc-100" href="/settings">
               Settings
-            </a>
+            </Link>
           </div>
         </div>
 
