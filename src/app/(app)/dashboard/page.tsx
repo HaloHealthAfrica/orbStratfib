@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   let counts: { webhooks: number; signals: number; openTrades: number } | null = null;
   let error: string | null = null;

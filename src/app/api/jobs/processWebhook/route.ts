@@ -140,6 +140,28 @@ export async function POST(req: Request) {
     allowLunch: strategyConf?.allowLunch ?? true,
   };
 
+  // Strategy enable gate
+  if (strategyConf && !strategyConf.enabled) {
+    const signal = await prisma.signal.create({
+      data: {
+        webhookId: webhook.id,
+        strategyId,
+        symbol: normalized.symbol ?? "unknown",
+        side: normalized.side ?? "unknown",
+        timeframe: normalized.timeframe ?? "unknown",
+        event: normalized.event ?? "unknown",
+        baseScore: normalized.confidence ?? 50,
+        finalScore: 0,
+        decision: "SKIP",
+        decisionWhy: "STRATEGY_DISABLED",
+        enrichment: { normalized } as any,
+      },
+      select: { id: true },
+    });
+    await prisma.webhookEvent.update({ where: { id: webhook.id }, data: { status: "PROCESSED" } });
+    return NextResponse.json({ ok: true, webhookId: webhook.id, signalId: signal.id, decision: "SKIP" });
+  }
+
   // Hard session gate (before scoring)
   const gate = hardSessionGate(nowMs, {
     timezone: cfg.timezone,
@@ -185,6 +207,16 @@ export async function POST(req: Request) {
     const openTrades = await prisma.trade.count({ where: { userId: owner.id, status: "OPEN" } });
     if (openTrades >= (strategyConf?.maxConcurrent ?? 2))
       return { allowed: false as const, reasonIfBlocked: "max_concurrent" };
+
+    // max daily loss (uses pnlUsd as tracked by cron; conservative gate)
+    const todays = await prisma.trade.findMany({
+      where: { userId: owner.id, openedAt: { gte: startOfDay } },
+      select: { pnlUsd: true },
+    });
+    const pnlToday = todays.reduce((a, t) => a + Number(t.pnlUsd ?? 0), 0);
+    const maxLoss = strategyConf?.maxDailyLossUsd ?? 250;
+    if (pnlToday <= -Math.abs(maxLoss)) return { allowed: false as const, reasonIfBlocked: "max_daily_loss" };
+
     return { allowed: true as const };
   })();
 
@@ -379,11 +411,13 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true, webhookId: webhook.id, signalId: signal.id, decision: "WATCH", optionPicked: false, tradeId: null });
         }
 
-        // Optional execution (paper default; live only when strategyConfig.mode == LIVE)
+        // Optional execution (paper default; live only when strategyConfig.mode == LIVE AND LIVE_TRADING_ENABLED=true)
         if (picked.best) {
           const mid = (picked.best.bid + picked.best.ask) / 2;
           const side = (normalized.side ?? "").toUpperCase().includes("SHORT") ? ("BUY_PUT" as const) : ("BUY_CALL" as const);
-          const qty = 1; // TODO: size by risk budget / option price
+          const riskUsd = strategyConf?.riskPerTradeUsd ?? 50;
+          const estContractRisk = Math.max(0.01, mid) * 100; // crude proxy
+          const qty = Math.max(1, Math.floor(riskUsd / estContractRisk));
           const audit = {
             decision: finalDecision,
             reasons: engineOut.reasons,
@@ -391,8 +425,12 @@ export async function POST(req: Request) {
             optionPick: picked.ranked.slice(0, 10),
             quote,
           };
+          const liveEnabled =
+            (env.LIVE_TRADING_ENABLED ?? "").toLowerCase() === "true" ||
+            env.LIVE_TRADING_ENABLED === "1" ||
+            (env.LIVE_TRADING_ENABLED ?? "").toLowerCase() === "yes";
           const trade =
-            cfg.mode === "LIVE"
+            cfg.mode === "LIVE" && liveEnabled
               ? await createLiveTradeViaTradier({
                   userId: owner.id,
                   signalId: signal.id,

@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Miyagi Trader (ORB Strat + Fib) — Vercel-native options decision engine
 
-## Getting Started
+TradingView webhook → store-first → async processing (QStash) → explainable decision → options selection → paper/live execution (Tradier).
 
-First, run the development server:
+## What’s in this repo
+
+- **Next.js App Router (TS)** UI pages:
+  - `/dashboard`, `/webhooks`, `/signals`, `/signals/[id]`, `/trades`, `/trades/[id]`, `/watchlist`, `/settings`, `/pnl`
+- **API routes**:
+  - `POST /api/webhooks/tradingview` (store-first + enqueue)
+  - `POST /api/jobs/processWebhook` (worker)
+  - `POST /api/jobs/updatePnl` (cron)
+  - `GET /api/debug/webhook/[id]` (debug)
+- **Database**: Prisma schema + SQL migrations under `prisma/`
+
+## Local setup
+
+1) Create env file:
+
+- Copy `env.example` → `.env.local` and fill in `DATABASE_URL` at minimum.
+
+2) Generate Prisma client:
+
+```bash
+npx prisma generate
+```
+
+3) Apply migrations
+
+This repo includes raw SQL migrations (`prisma/migrations/*/migration.sql`).
+Apply them to your Postgres (Neon/Supabase) using your tool of choice, or run Prisma migrations once you have a DB available.
+
+4) Run dev:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Vercel deployment checklist
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Required env vars (minimum)
+- `DATABASE_URL`
+- `NEXTAUTH_SECRET` (recommended in prod)
+- `APP_BASE_URL` (needed for QStash callback URLs)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Webhook endpoint
+- Send TradingView webhooks to: `POST /api/webhooks/tradingview`
+- Use header `X-WEBHOOK-TOKEN: <WEBHOOK_SECRET>`
+- Optional signature header: `X-Signature` (HMAC-SHA256 over raw body with `WEBHOOK_SECRET`)
 
-## Learn More
+### QStash worker
+- Configure `QSTASH_TOKEN` and signing keys
+- QStash publishes to: `POST /api/jobs/processWebhook`
 
-To learn more about Next.js, take a look at the following resources:
+### Vercel Cron (PnL)
+- Create a cron job calling: `POST /api/jobs/updatePnl`
+- Add header `X-CRON-SECRET: <WEBHOOK_SECRET>`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Tradier live trading safety
+Live order placement requires **both**:
+- `StrategyConfig.mode = LIVE`
+- `LIVE_TRADING_ENABLED=true`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Auth
+Auth.js is wired via `/api/auth/[...nextauth]`. GitHub OAuth works when you set:
+- `GITHUB_ID`, `GITHUB_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

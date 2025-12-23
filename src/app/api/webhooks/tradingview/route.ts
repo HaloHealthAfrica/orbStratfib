@@ -94,7 +94,7 @@ export async function POST(req: Request) {
 
     const client = getQStashClient();
     await client.publishJSON({
-      url: `${base.replace(/\\/$/, "")}/api/jobs/processWebhook`,
+      url: `${base.replace(/\/$/, "")}/api/jobs/processWebhook`,
       body: { id: created.id },
       retries: 3,
     });

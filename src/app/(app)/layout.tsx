@@ -5,6 +5,7 @@ const nav = [
   { href: "/webhooks", label: "Webhooks" },
   { href: "/signals", label: "Signals" },
   { href: "/trades", label: "Trades" },
+  { href: "/pnl", label: "P&L" },
   { href: "/watchlist", label: "Watchlist" },
   { href: "/settings", label: "Settings" },
 ];

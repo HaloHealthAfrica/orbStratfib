@@ -14,6 +14,8 @@ const schema = z.object({
   // Auth.js
   NEXTAUTH_SECRET: z.string().min(1).optional(),
   NEXTAUTH_URL: z.string().url().optional(),
+  GITHUB_ID: z.string().optional(),
+  GITHUB_SECRET: z.string().optional(),
 
   // QStash
   QSTASH_TOKEN: z.string().optional(),
@@ -33,6 +35,9 @@ const schema = z.object({
   TRADIER_ACCOUNT_ID: z.string().optional(),
   TWELVEDATA_API_KEY: z.string().optional(),
   MARKETDATA_API_KEY: z.string().optional(),
+
+  // Safety toggle for live trading
+  LIVE_TRADING_ENABLED: z.string().optional(), // "true" to allow live order placement
 
   // Single-tenant auto-trade owner
   OWNER_USER_EMAIL: z.string().email().optional(),

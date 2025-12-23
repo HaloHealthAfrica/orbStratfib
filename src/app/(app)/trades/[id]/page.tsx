@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function TradeDetailPage({ params }: { params: { id: string } }) {
   let row: any = null;
   let error: string | null = null;

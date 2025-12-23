@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export default async function WebhooksPage() {
   let rows: any[] = [];
   let error: string | null = null;
