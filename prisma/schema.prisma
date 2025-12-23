@@ -1,0 +1,339 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WebhookStatus {
+  RECEIVED
+  QUEUED
+  NORMALIZED
+  PROCESSED
+  REJECTED
+  ERROR
+}
+
+enum SignalDecision {
+  TRADE
+  SKIP
+  WATCH
+  CANCEL
+}
+
+enum TradeMode {
+  PAPER
+  LIVE
+}
+
+enum OrderStatus {
+  CREATED
+  SUBMITTED
+  PARTIALLY_FILLED
+  FILLED
+  CANCELED
+  REJECTED
+  ERROR
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+
+  apiKeys       ApiKey[]
+  watchlists    Watchlist[]
+  strategyConfs StrategyConfig[]
+  trades        Trade[]
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  provider  String   // "tradier" | "twelvedata" | "marketdata"
+  label     String?
+  keyEnc    String   // encrypted at rest
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, provider])
+}
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items WatchlistItem[]
+  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+}
+
+model WatchlistItem {
+  id          String   @id @default(cuid())
+  watchlistId String
+  symbol      String
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+
+  @@index([watchlistId, symbol])
+}
+
+model StrategyConfig {
+  id               String    @id @default(cuid())
+  userId           String
+  strategyId       String    // matches webhook.strategy_id
+  enabled          Boolean   @default(true)
+  mode             TradeMode @default(PAPER)
+
+  // scanner & gating
+  topN             Int       @default(1)
+  allowUnsigned    Boolean   @default(false)
+
+  // session gating (hard)
+  allowOutsideRTH  Boolean   @default(false)
+  allowLunch       Boolean   @default(true)
+  rthStart         String    @default("09:30")
+  rthEnd           String    @default("16:00")
+  lunchStart       String    @default("12:00")
+  lunchEnd         String    @default("13:30")
+  timezone         String    @default("America/New_York")
+
+  // decay + cancel
+  decayPerMinute   Float     @default(0.6) // points/minute (tunable)
+  autoCancelMins   Int       @default(30)
+
+  // risk
+  maxTradesPerDay  Int       @default(5)
+  maxConcurrent    Int       @default(2)
+  maxDailyLossUsd  Float     @default(250)
+  riskPerTradeUsd  Float     @default(50)
+
+  // option selection knobs
+  intradayMinDte   Int       @default(0)
+  intradayMaxDte   Int       @default(7)
+  swingMinDte      Int       @default(7)
+  swingMaxDte      Int       @default(45)
+  intradayDeltaMin Float     @default(0.35)
+  intradayDeltaMax Float     @default(0.50)
+  swingDeltaMin    Float     @default(0.25)
+  swingDeltaMax    Float     @default(0.40)
+
+  // liquidity filters
+  minOi            Int       @default(500)
+  minVolume        Int       @default(100)
+  maxSpreadPct     Float     @default(0.20)
+  minOptionPrice   Float     @default(0.30)
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, strategyId])
+}
+
+model WebhookEvent {
+  id             String        @id @default(cuid())
+  receivedAt     DateTime      @default(now())
+  status         WebhookStatus @default(RECEIVED)
+
+  // idempotency (required for safe webhook retries)
+  idempotencyKey String?       @unique
+
+  // normalized
+  source         String?
+  version        String?
+  strategyId     String?
+  event          String?
+  side           String? // "LONG"|"SHORT" etc
+  symbol         String?
+  timeframe      String?
+  timestampMs    BigInt?
+  confidence     Float?
+
+  // integrity
+  signatureOk    Boolean       @default(false)
+  ip             String?
+  userAgent      String?
+
+  // raw
+  payload        Json
+  error          String?
+
+  signals        Signal[]
+
+  @@index([status, receivedAt])
+  @@index([strategyId, symbol, receivedAt])
+}
+
+model Signal {
+  id          String         @id @default(cuid())
+  webhookId   String
+  createdAt   DateTime       @default(now())
+
+  strategyId  String
+  symbol      String
+  side        String
+  timeframe   String
+  event       String
+
+  baseScore   Float
+  finalScore  Float
+  decision    SignalDecision @default(SKIP)
+  decisionWhy String?
+
+  // scanner/top-N audit (optional but useful)
+  scannerRank      Int?
+  scannerTotal     Int?
+  scannerWindowSec Int?
+
+  // lifecycle
+  expiresAt   DateTime?
+  canceledAt  DateTime?
+
+  // enriched snapshots (store compact)
+  enrichment  Json?
+  optionPick  Json?
+
+  webhook WebhookEvent @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  trade   Trade?
+
+  @@index([symbol, createdAt])
+  @@index([strategyId, decision, createdAt])
+}
+
+model Trade {
+  id         String    @id @default(cuid())
+  userId     String
+  signalId   String    @unique
+  mode       TradeMode @default(PAPER)
+
+  symbol     String
+  optionSym  String    // OCC or broker symbol
+  side       String    // "BUY_CALL"/"BUY_PUT"/"SELL" etc
+
+  qty        Int
+  entryPrice Float?
+  exitPrice  Float?
+  openedAt   DateTime  @default(now())
+  closedAt   DateTime?
+
+  status     String    // "OPEN"|"CLOSED"|"CANCELED"|"ERROR"
+  pnlUsd     Float     @default(0)
+
+  auditLog   Json?
+
+  orders     Order[]
+  fills      Fill[]
+  pnlSnaps   PnLSnapshot[]
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signal Signal @relation(fields: [signalId], references: [id], onDelete: Restrict)
+
+  @@index([userId, openedAt])
+  @@index([symbol, status])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  tradeId       String
+  broker        String      // "tradier"
+  brokerOrderId String?
+  status        OrderStatus @default(CREATED)
+
+  type          String      // "MARKET"|"LIMIT" etc
+  limitPrice    Float?
+  qty           Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  raw           Json?
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, status])
+}
+
+model Fill {
+  id       String   @id @default(cuid())
+  tradeId  String
+  orderId  String?
+  filledAt DateTime @default(now())
+  qty      Int
+  price    Float
+  raw      Json?
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, filledAt])
+}
+
+model PnLSnapshot {
+  id        String   @id @default(cuid())
+  tradeId   String
+  at        DateTime @default(now())
+  markPrice Float
+  pnlUsd    Float
+  raw       Json?
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, at])
+}
+
+/**
+ * Auth.js (NextAuth) tables
+ */
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+
